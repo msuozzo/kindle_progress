@@ -6,7 +6,7 @@ import json
 class JSONCredentialManager(object):
     """Manage credentials using a JSON file as backing.
     """
-    def __init__(self, creds_fname='.credentials.json'):
+    def __init__(self, creds_fname):
         self.creds_fname = creds_fname
         with open(creds_fname) as creds_file:
             self._creds_dict = json.load(creds_file)
