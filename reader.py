@@ -46,12 +46,12 @@ class KindleBook(object):
         asin: The "Amazon Standard Item Number" of the book. Essentially a
             UUID for Kindle books.
         title: The book title
-        authors: A list of the book's authors. May be empty.
+        authors: An iterable of the book's authors.
     """
-    def __init__(self, asin, title, authors):
+    def __init__(self, asin, title, authors=()):
         self.asin = unicode(asin)
         self.title = unicode(title)
-        self.authors = map(unicode, authors) if authors else []
+        self.authors = tuple(unicode(authors) for author in authors)
 
     def __str__(self):
         if not self.authors:
@@ -95,10 +95,10 @@ class ReadingProgress(object):
         and various other online discussions, a single 'location' is
         equivalent to 128 bytes of code (in the azw3 file format).
 
-        For normal books, this ranges from 3-4 locations per page with a
-        large font to ~16 locs/pg with a small font. However, book
-        elements such as images or charts may require many more bytes and,
-        thus, locations to represent.
+        For normal books, this ranges from 3-4 locations per Kindle page with
+        a large font to ~16 locs/Kpg with a small font. However, book elements
+        such as images or charts may require many more bytes and, thus,
+        locations to represent.
 
         In spite of this extra noise, locations provide a more granular
         measurement of reading progress than page numbers.
@@ -114,9 +114,9 @@ class ReadingProgress(object):
         positions and locations is something like 150 to 1.
     """
     def __init__(self, positions, locs, page_nums=None):
-        self.positions = positions
-        self.locs = locs
-        self.page_nums = page_nums
+        self.positions = tuple(positions)
+        self.locs = tuple(locs)
+        self.page_nums = tuple(page_nums) if page_nums is not None else None
 
     def has_page_progress(self):
         """Return whether page numbering is available in this object
