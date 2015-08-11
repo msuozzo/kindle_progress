@@ -6,13 +6,16 @@ from credential_mgr import JSONCredentialManager
 import sys
 import os
 from getpass import getuser
-import re
+from textwrap import dedent
 
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver import Firefox, ActionChains
 from selenium.common.exceptions import NoSuchElementException,\
                                         ElementNotVisibleException
+
+
+API_SCRIPT_PATH = 'kindle_api.js'
 
 
 class ConnectionError(Exception):
@@ -36,43 +39,48 @@ def get_ff_profile_path():
         raise NotImplementedError
 
 
-def scroll_into_view(element):
-    """Scroll a Selenium WebElement into view.
-
-    Why is the syntax so un-Pythonic? The world may never know.
-    """
-    element.location_once_scrolled_into_view  #pylint: disable=pointless-statement
-
-
 class KindleBook(object):
-    """A book in a Kindle Library
+    """A Kindle Book
+
+    Args:
+        asin: The "Amazon Standard Item Number" of the book. Essentially a
+            UUID for Kindle books.
+        title: The book title
+        authors: A list of the book's authors. May be empty.
     """
-    def __init__(self, id_, title, author):
-        self.id_ = unicode(id_)
+    def __init__(self, asin, title, authors):
+        self.asin = unicode(asin)
         self.title = unicode(title)
-        self.author = unicode(author) if author else None
+        self.authors = map(unicode, authors) if authors else []
 
     def __str__(self):
-        if self.author is None:
+        if not self.authors:
             ret = u'"{}"'.format(self.title)
+        elif len(self.authors) == 1:
+            ret = u'"{}" by {}'.format(self.title, self.authors[0])
+        elif len(self.authors) == 2:
+            ret = u'"{}" by {} and {}'\
+                    .format(self.title, self.authors[0], self.authors[1])
         else:
-            ret = u'"{}" by {}'.format(self.title, self.author)
+            ret = u'"{}" by {}, and {}'\
+                    .format(self.title, u', '.join(self.authors[:-1]),
+                            self.authors[-1])
         return ret.encode('utf8')
 
     def __repr__(self):
-        return u'Book(id={}, title="{}", author="{}")'\
-                .format(self.id_, self.title, self.author)\
+        author_str = u', '.join([u'"%s"' % author for author in self.authors])
+        return u'Book(asin={}, title="{}", authors=[{}])'\
+                .format(self.asin, self.title, author_str)\
                 .encode('utf8')
 
 
 class ReadingProgress(object):
-    """A representation of far the reader is through a book
+    """A representation of how far the reader is through a book
 
     Args:
-        book: The book for which the progress is associated
-        loc_pair: A 2-tuple (current_location, end_location)
-        page_pair (optional): A 2-tuple (current_page, end_page)
-
+        positions: A 3-tuple (start_position, current_position, end_position)
+        locs: A 3-tuple (start_location, current_location, end_location)
+        page_nums (optional): A 3-tuple (start_page, current_page, end_page)
 
     Notes on Progress Formats:
 
@@ -95,33 +103,43 @@ class ReadingProgress(object):
         In spite of this extra noise, locations provide a more granular
         measurement of reading progress than page numbers.
 
-        Additionally, _locations are always available_ while page numbers are
-        frequently absent from Kindle metadata.
+        Additionally, locations are available on every Kindle title while
+        page numbers are frequently absent from Kindle metadata.
+
+    Positions:
+        Positions are the representation used to represent reading progress in
+        the Kindle service. As such, it is the most granular measure
+        available. I was unable to find any documentation on their meaning but
+        the formulae found in the code indicate the equivalence between
+        positions and locations is something like 150 to 1.
     """
-    def __init__(self, book, loc_pair, page_pair=None):
-        self.book = book
-        self.current_loc, self.end_loc = loc_pair
-        if page_pair:
-            self.current_page, self.end_page = page_pair  #pylint: disable=unpacking-non-sequence
-        else:
-            self.current_page, self.end_page = (None, None)
+    def __init__(self, positions, locs, page_nums=None):
+        self.positions = positions
+        self.locs = locs
+        self.page_nums = page_nums
 
     def has_page_progress(self):
         """Return whether page numbering is available in this object
         """
-        return self.current_page is not None
+        return self.page_nums is not None
+
+    def __str__(self):
+        if self.has_page_progress():
+            return 'Page %d of %d' % (self.page_nums[1], self.page_nums[2])
+        else:
+            return 'Location %d of %d' % (self.locs[1], self.locs[2])
 
     def __repr__(self):
         if self.has_page_progress():
-            return 'Progress(Loc=(%d of %d), Page=(%d of %d))' % \
-                    (self.current_loc, self.end_loc,
-                            self.current_page, self.end_page)
+            return 'ReadingProgress(Loc=(%d of %d), Page=(%d of %d))' % \
+                    (self.locs[1], self.locs[2],
+                            self.page_nums[1], self.page_nums[2])
         else:
-            return 'Progress(Loc=(%d of %d))' % \
-                    (self.current_loc, self.end_loc)
+            return 'ReadingProgress(Loc=(%d of %d))' % \
+                    (self.locs[1], self.locs[2])
 
 
-class KindleCloudReader(object):
+class KindleCloudReaderAPI(object):
     """An interface for extracting data from Kindle Cloud Reader
 
     Args:
@@ -142,12 +160,15 @@ class KindleCloudReader(object):
         else:
             profile = None
         self._browser = Firefox(firefox_profile=profile)
+        self._browser.set_script_timeout(10)
         self._wait = WebDriverWait(self._browser,
                 timeout=10,
                 ignored_exceptions=(NoSuchElementException,
                     ElementNotVisibleException))
         self._manager = JSONCredentialManager(amz_login_credentials_path)
         self._action = ActionChains(self._browser)
+        with open(API_SCRIPT_PATH, 'r') as api_script_file:
+            self._api_script = api_script_file.read()
 
     def _to_reader_home(self):
         """Navigate to the Cloud Reader library page
@@ -155,7 +176,7 @@ class KindleCloudReader(object):
         # NOTE: Prevents QueryInterface error caused by getting a URL
         # while switched to an iframe
         self._browser.switch_to_default_content()
-        self._browser.get(KindleCloudReader.CLOUD_READER_URL)
+        self._browser.get(KindleCloudReaderAPI.CLOUD_READER_URL)
 
         if self._browser.title == u'Problem loading page':
             raise ConnectionError
@@ -172,114 +193,12 @@ class KindleCloudReader(object):
 
         assert self._browser.title == u'Kindle Cloud Reader'
 
-        self._switch_to_frame('KindleLibraryIFrame')
-        self._sync_library()
-
-    def _to_book_reader(self, book):
-        """Navigate to the Cloud Reader page for `book`
-        """
-        # Go to cloud reader home
-        self._to_reader_home()
-
-        self._wait.until(lambda br: br.find_element_by_id(book.id_))
-
-        def _find_and_click(browser):
-            """Finds the book, scrolls it into view, and clicks on it
-            """
-            title_div = browser.find_element_by_id(book.id_)\
-                                    .find_element_by_class_name('book_title')
-            scroll_into_view(title_div)
-            title_div.click()
-            return True
-        self._wait.until(_find_and_click)
-
-        # Switch to Reader frame
-        self._browser.switch_to_default_content()
-        self._switch_to_frame('KindleReaderIFrame')
-        self._sync_reader()
-
-    def _sync_reader(self):
-        """Sync the reader position to the furthest available
-
-        When a Reader is launched, KCR will check to see whether a further
-        reading position exists on any other Kindle devices/apps.
-        If one is found, a 'load-in sync dialog' will be presented to user
-        with the option to sync with this further position.
-
-        Unfortunately, the book pane will usually load prior to a load-in sync
-        dialog prompt (if there is one). I couldn't find a suitable event to
-        wait for so one of the few alternatives would have been sleeping for a
-        second or two. This was uncomfortably inexact.
-
-        To make the process more deterministic, we immediately trigger a
-        manual sync when the book pane loads. This way, regardless of whether
-        or not a load-in sync dialog appears, we can process the sync.
-
-        Basically:
-            If the load-in sync dialog has loaded, we click through it.
-            Else, we trigger the sync and click through it just the same.
-        """
-        self._wait.until(lambda br:\
-                br.find_element_by_id('kindleReader_book_container'))
-
-        self._reveal_reader_header_footer()
-
-        sync_pane_class = 'ui-dialog'
-        has_dialog = lambda br:\
-            bool(br.find_elements_by_class_name(sync_pane_class))
-        if not has_dialog(self._browser):
-            self._browser.find_element_by_id('kindleReader_button_sync').click()
-            self._wait.until(has_dialog)
-
-        # Check whether sync is required
-        sync_pane = self._browser.find_element_by_class_name(sync_pane_class)
-        buttons = sync_pane.find_elements_by_tag_name('button')
-        load_in_sync = len(buttons) == 3  # 3 buttons in load-in sync dialog
-        if load_in_sync:
-            dialogue_text = self._browser\
-                    .find_element_by_id('kindleReader_dialog_syncPosition_label').text
-            match = re.search(\
-                        ur'currently at .+ (\d+)\. .+ furthest .+ is (\d+) from',
-                        dialogue_text)
-            current, furthest = map(int, match.group(1, 2))
-            position_changed = current != furthest
-        requires_sync = load_in_sync and position_changed
-
-        # Record pre-sync progress
-        get_progress_text = lambda br: br\
-                    .find_element_by_id('kindleReader_footer_message').text
-        progress_text = get_progress_text(self._browser)
-
-        # If no sync available, buttons[0] will be the cancel button
-        # If there is a sync, buttons[0] will be 'Sync to Furthest Position'
-        self._wait.until_not(lambda br: buttons[0].click() or buttons[0].is_displayed())
-
-        # Wait for position to change
-        if requires_sync:
-            self._wait.until(lambda br: progress_text != get_progress_text(br))
-
-    def _sync_library(self):
-        """Sync the Kindle Cloud Library
-        """
-        if not self._browser.current_url.startswith(KindleCloudReader.CLOUD_READER_URL):
-            raise RuntimeError('current url "%s" is not a cloud reader url ("%s")' %
-                    (self._browser.current_url, KindleCloudReader.CLOUD_READER_URL))
-
-        # Wait for sync button to exist and then click it
-        get_sync_btn = lambda br: br.find_element_by_id('kindleLibrary_button_sync')
-        self._wait.until(get_sync_btn)
-        get_sync_btn(self._browser).click()
-
-        # Wait for sync to complete
-        has_spinner = lambda br: br.find_element_by_id('loading_spinner')
-        self._wait.until_not(has_spinner)
-
     def _login(self):
         """Log in to Kindle Cloud Reader
         """
-        if not self._browser.current_url.startswith(KindleCloudReader.SIGNIN_URL):
+        if not self._browser.current_url.startswith(KindleCloudReaderAPI.SIGNIN_URL):
             raise RuntimeError('current url "%s" is not a signin url ("%s")' %
-                    (self._browser.current_url, KindleCloudReader.SIGNIN_URL))
+                    (self._browser.current_url, KindleCloudReaderAPI.SIGNIN_URL))
         uname, pword = self._manager.get_creds()
         self._browser.find_element_by_id('ap_email').send_keys(uname)
         self._browser.find_element_by_id('ap_password').send_keys(pword)
@@ -294,76 +213,89 @@ class KindleCloudReader(object):
         self._wait.until(lambda br: br.find_element_by_id(frame_id))
         self._browser.switch_to.frame(frame_id)  #pylint: disable=no-member
 
-    def _reveal_reader_header_footer(self):
-        """Bring the header and footer into view by transferring focus to the
-        search bar.
+    def _get_api_call(self, function_name, *args):
+        """Runs the api call `function_name` with the javascript-formatted
+        arguments `*args`
         """
-        def _set_active_and_check(browser):
-            """Set the searchbox as active and return whether the footer is
-            visible.
-            """
-            browser.execute_script('this.KindleReaderSearchBox.setActive(!0);')
-            footer = browser.find_element_by_id('kindleReader_footer_message')
-            return bool(footer.text)
-        self._wait.until(_set_active_and_check)
+        self._switch_to_frame('KindleReaderIFrame')
+        # Wait until the books have been loaded
+        self._wait.until(lambda br: br.execute_async_script(
+            ur"""
+            var done = arguments[0];
+            KindleModuleManager
+                .isModuleInitialized(Kindle.MODULE.DB_CLIENT) &&
+            KindleModuleManager
+                .getModuleSync(Kindle.MODULE.DB_CLIENT)
+                .getAppDb()
+                .getAllBooks()
+                .done(function(books) { done(!!books.length); });
+            """))
+        api_call = dedent("""
+            var done = arguments[0];
+            %(api_script)s
+            KindleAPI.%(api_call)s(%(args)s).done(function(a) {
+                done(a);
+        });
+        """) % {'api_script': self._api_script,
+                'api_call': function_name,
+                'args': ', '.join(args)
+                }
+        script = '\n'.join((self._api_script, api_call))
+        return self._browser.execute_async_script(script)
 
-    def get_library(self):
+    @staticmethod
+    def _kbm_to_book(kbm):
+        """Return a `KindleBook` instance from a dictionary representation of
+        a javascript KindleBookMetadata object.
+        """
+        return KindleBook(**kbm)  #pylint: disable=star-args
+
+    @staticmethod
+    def _kbp_to_progress(kbp):
+        """Return a `ReadingProgress` instance from a dictionary representation of
+        a javascript KindleBookProgress object.
+        """
+        return ReadingProgress(**kbp)  #pylint: disable=star-args
+
+    def get_book_metadata(self, asin):
+        """Return metadata on the book with the ASIN supplied
+
+        Returns:
+            A `KindleBook` object
+        """
+        self._to_reader_home()
+        kbm = self._get_api_call('get_book_metadata', asin)
+        return KindleCloudReaderAPI._kbm_to_book(kbm)
+
+    def get_library_metadata(self):
         """Return metadata on the books in the kindle library
 
         Returns:
             A list of `KindleBook` objects
         """
-        # Go to cloud reader home
         self._to_reader_home()
+        return map(KindleCloudReaderAPI._kbm_to_book,
+                self._get_api_call('get_library_metadata'))
 
-        # Ensure iframe content has loaded
-        # Then extract metadata from each book
-        get_containers = lambda br: br.find_elements_by_class_name('book_container')
-        self._wait.until(get_containers)
-        containers = get_containers(self._browser)
-        books = []
-        for container in containers:
-            id_ = container.get_attribute('id')
-            title_elem = container.find_element_by_class_name('book_title')
-            scroll_into_view(title_elem)
-            title = title_elem.text
-            author = container.find_element_by_class_name('book_author').text
-            books.append(KindleBook(id_, title, author))
-
-        return books
-
-    def get_current_progress(self, book):
+    def get_book_progress(self, asin):
         """Return a `ReadingProgress` object containing the available progress
-
         data.
         NOTE: A summary of the two progress formats can be found in the
-
 
         Args:
             read_cb: The callback to open the reader for the target book
         """
-        # Go to the reader page for `book`
-        self._to_book_reader(book)
+        self._to_reader_home()
+        kbp = self._get_api_call('get_book_progress', asin)
+        return KindleCloudReaderAPI._kbp_to_progress(kbp)
 
-        # Ensure footer is visible
-        self._reveal_reader_header_footer()
-
-        # Extract progress counters from the footer
-        progress_text = self._browser\
-                .find_element_by_id('kindleReader_footer_message').text
-        def _extract_pairs(pair_regex, text):
-            """If `pair_regex` matches `text`, return the pair of integers matched
-            Else if not match is found, return None
-            """
-            match = re.search(pair_regex, text)
-            return map(int, match.group(1, 2)) if match else None
-        page_tuple = _extract_pairs(ur'Page (\d+) of (\d+)', progress_text)
-        loc_tuple = _extract_pairs(ur'Location (\d+) of (\d+)', progress_text)
-
-        # Return to the library page
-        self._browser.find_element_by_id('kindleReader_button_close').click()
-
-        return ReadingProgress(book, loc_tuple, page_tuple)
+    def get_library_progress(self):
+        """Return a dictionary mapping the `ReadingProgress`
+        """
+        self._to_reader_home()
+        kbp_dict = self._get_api_call('get_library_progress')
+        return {asin: KindleCloudReaderAPI._kbp_to_progress(kbp)
+                for asin, kbp in kbp_dict.iteritems()}
 
     def close(self):
         """End the browser session
@@ -376,9 +308,7 @@ if __name__ == "__main__":
         raise RuntimeError('Non-OS X platforms not supported')
 
     CREDENTIAL_PATH = '.credentials.json'
-    READER = KindleCloudReader(CREDENTIAL_PATH)
-    BOOKS = READER.get_library()
-    for BOOK in BOOKS:
-        PROG = READER.get_current_progress(BOOK)
-        print PROG, BOOK.title
+    READER = KindleCloudReaderAPI(CREDENTIAL_PATH)
+    print READER.get_library_metadata()
+    print READER.get_library_progress()
     READER.close()
