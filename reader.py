@@ -7,6 +7,7 @@ import sys
 import os
 from getpass import getuser
 from textwrap import dedent
+from contextlib import contextmanager
 
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 from selenium.webdriver.support.wait import WebDriverWait
@@ -51,7 +52,7 @@ class KindleBook(object):
     def __init__(self, asin, title, authors=()):
         self.asin = unicode(asin)
         self.title = unicode(title)
-        self.authors = tuple(unicode(authors) for author in authors)
+        self.authors = tuple(unicode(author) for author in authors)
 
     def __str__(self):
         if not self.authors:
@@ -122,6 +123,24 @@ class ReadingProgress(object):
         """Return whether page numbering is available in this object
         """
         return self.page_nums is not None
+
+    def __eq__(self, other):
+        return self.positions == other.positions and \
+                self.locs == other.locs and \
+                self.page_nums == other.page_nums
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __gt__(self, other):
+        return self.positions[1] > other.positions[1] and \
+                self.locs[1] > other.locs[1] and \
+                self.page_nums[1] > other.page_nums[1]
+
+    def __lt__(self, other):
+        return self.positions[1] < other.positions[1] and \
+                self.locs[1] < other.locs[1] and \
+                self.page_nums[1] < other.page_nums[1]
 
     def __str__(self):
         if self.has_page_progress():
@@ -302,13 +321,25 @@ class KindleCloudReaderAPI(object):
         """
         self._browser.quit()
 
+    @staticmethod
+    @contextmanager
+    def get_instance(*args, **kwargs):
+        """Context manager for an instance of ``KindleCloudReaderAPI``
+        """
+        inst = KindleCloudReaderAPI(*args, **kwargs)
+        try:
+            yield inst
+        except Exception as exception:
+            raise exception
+        finally:
+            inst.close()
+
 
 if __name__ == "__main__":
     if sys.platform != 'darwin':
         raise RuntimeError('Non-OS X platforms not supported')
 
     CREDENTIAL_PATH = '.credentials.json'
-    READER = KindleCloudReaderAPI(CREDENTIAL_PATH)
-    print READER.get_library_metadata()
-    print READER.get_library_progress()
-    READER.close()
+    with KindleCloudReaderAPI.get_instance(CREDENTIAL_PATH) as READER:
+        print READER.get_library_metadata()
+        print READER.get_library_progress()

@@ -76,11 +76,11 @@ class SetReadingEvent(KindleEvent):
     def __init__(self, asin, initial_progress):
         super(SetReadingEvent, self).__init__()
         self.asin = asin
-        self.initial_position = initial_progress
+        self.initial_progress = initial_progress
 
     def __str__(self):
         return 'START READING %s FROM %s %d' % (self.asin, POSITION_MEASURE,
-                self.initial_position)
+                self.initial_progress)
 
     @staticmethod
     def from_str(string):

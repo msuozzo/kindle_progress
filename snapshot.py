@@ -25,16 +25,16 @@ class KindleLibrarySnapshot(object):
         """Apply an event to the snapshot instance
         """
         if isinstance(event, AddEvent):
-            self.data[event.book] = {
+            self.data[event.asin] = {
                     'status': ReadingStatus.NOT_STARTED,
                     'progress': None
                 }
         elif isinstance(event, SetReadingEvent):
-            self.data[event.book]['status'] = ReadingStatus.CURRENT
-            self.data[event.book]['progress'] = event.initial_progress
+            self.data[event.asin]['status'] = ReadingStatus.CURRENT
+            self.data[event.asin]['progress'] = event.initial_progress
         elif isinstance(event, ReadEvent):
-            self.data[event.book]['progress'] += event.progress
+            self.data[event.asin]['progress'] += event.progress
         elif isinstance(event, SetFinishedEvent):
-            self.data[event.book]['status'] = ReadingStatus.COMPLETED
+            self.data[event.asin]['status'] = ReadingStatus.COMPLETED
         else:
             raise TypeError

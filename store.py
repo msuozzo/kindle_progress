@@ -21,14 +21,16 @@ class EventStore(object):
         """Returns a list of all ``KindleEvent``s held in the store
         """
         with open(self._path, 'r') as file_:
-            event_strs = file_.read().splitlines()
+            file_lines = file_.read().splitlines()
+            event_lines = [line for line in file_lines if line]
         events = []
-        for event_str in event_strs:
+        for event_line in event_lines:
             for event_cls in (AddEvent, SetReadingEvent, ReadEvent,
                     SetFinishedEvent):
                 try:
-                    event = event_cls.from_str(event_str)
+                    event = event_cls.from_str(event_line)
                 except EventParseError:
                     pass
                 else:
                     events.append(event)
+        return events
