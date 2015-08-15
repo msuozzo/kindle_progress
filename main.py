@@ -5,6 +5,7 @@ from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
 from store import EventStore
 from snapshot import KindleLibrarySnapshot, ReadingStatus
 from kindle_api.reader import KindleCloudReaderAPI
+from credential_mgr import JSONCredentialManager
 
 from datetime import datetime
 
@@ -40,14 +41,15 @@ def _update(snapshot, kcr):
     return new_events
 
 
-def run():
+def run():  #pylint: disable=too-many-locals
     """Execute the command loop
     """
     store = EventStore(STORE_PATH)
     snapshot = KindleLibrarySnapshot(store.get_events())
 
     update_event = UpdateEvent(datetime.now().replace(microsecond=0))
-    with KindleCloudReaderAPI.get_instance(CREDENTIAL_PATH) as kcr:
+    uname, pword = JSONCredentialManager(CREDENTIAL_PATH).get_creds()
+    with KindleCloudReaderAPI.get_instance(uname, pword) as kcr:
         current_books = kcr.get_library_metadata()
         current_progress = kcr.get_library_progress()
         new_events = _update(snapshot, kcr)
