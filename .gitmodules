@@ -1,0 +1,3 @@
+[submodule "kindle_api"]
+	path = kindle_api
+	url = https://github.com/msuozzo/kindle-api

@@ -4,7 +4,7 @@ from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
                     UpdateEvent
 from store import EventStore
 from snapshot import KindleLibrarySnapshot, ReadingStatus
-from reader import KindleCloudReaderAPI
+from kindle_api.reader import KindleCloudReaderAPI
 
 from datetime import datetime
 
