@@ -1,6 +1,7 @@
 """Defines tools for composing ``KindleEvent``s into coherent state.
 """
-from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent
+from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
+                    KindleEvent
 
 
 class ReadingStatus(object):
@@ -24,7 +25,9 @@ class KindleLibrarySnapshot(object):
     def process_event(self, event):
         """Apply an event to the snapshot instance
         """
-        if isinstance(event, AddEvent):
+        if not isinstance(event, KindleEvent):
+            pass
+        elif isinstance(event, AddEvent):
             self.data[event.asin] = {
                     'status': ReadingStatus.NOT_STARTED,
                     'progress': None

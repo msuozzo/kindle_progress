@@ -1,9 +1,12 @@
 """Define a command line interface for Kindle Progress tracking
 """
-from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent
+from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
+                    UpdateEvent
 from store import EventStore
 from snapshot import KindleLibrarySnapshot, ReadingStatus
 from reader import KindleCloudReaderAPI
+
+from datetime import datetime
 
 
 STORE_PATH = '.store.txt'
@@ -43,6 +46,7 @@ def run():
     store = EventStore(STORE_PATH)
     snapshot = KindleLibrarySnapshot(store.get_events())
 
+    update_event = UpdateEvent(datetime.now().replace(microsecond=0))
     with KindleCloudReaderAPI.get_instance(CREDENTIAL_PATH) as kcr:
         current_books = kcr.get_library_metadata()
         current_progress = kcr.get_library_progress()
@@ -54,10 +58,19 @@ def run():
     # e.g. All ADDs must go before START READINGs
     #      All START READINGs before all READs
     print 'Processing updates:'
+    store.record_event(update_event)
     for event in sorted(new_events):
         print '  ' + str(event)
         store.record_event(event)
         snapshot.process_event(event)
+    if not new_events:
+        print '  No updates detected'
+
+    print
+    print 'Finished updating.'
+    print 'Mark new books as \'reading\' or old books as \'read\'? (y/N)'
+    if raw_input('> ') != 'y':
+        return
 
     cmd = ''
     book_range = range(1, len(current_books) + 1)
@@ -67,9 +80,9 @@ def run():
         for i in book_range:
             print '\t%d: %s' % (i, ind_to_book[i])
         print 'Commands:'
-        print '| start {#}'
-        print '| finish {#}'
-        print '| q'
+        print '| start {#}   | Start reading book with index {#}'
+        print '| finish {#}  | Finish reading book with index {#}'
+        print '| q           | Quit'
         cmd = raw_input('> ')
         get_book = lambda cmd_str: ind_to_book[int(cmd_str.split()[1])]
         if cmd.startswith('start '):
@@ -81,6 +94,7 @@ def run():
         else:
             event = None
         if event is not None:
+            print
             print 'REGISTERED EVENT:'
             print '  ' + str(event)
             store.record_event(event)
@@ -89,4 +103,7 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    try:
+        run()
+    except KeyboardInterrupt:
+        pass

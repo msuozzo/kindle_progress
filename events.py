@@ -2,6 +2,8 @@
 """
 import re
 
+import dateutil.parser
+
 
 POSITION_MEASURE = 'LOCATION'
 
@@ -12,8 +14,14 @@ class EventParseError(Exception):
     pass
 
 
-class KindleEvent(object):
+class Event(object):
     """A base event.
+    """
+    pass
+
+
+class KindleEvent(Event):
+    """A base kindle event.
 
     Establishes sortability of Events based on the `weight` property
     """
@@ -111,11 +119,11 @@ class ReadEvent(KindleEvent):
 
     @staticmethod
     def from_str(string):
-        """Generate a `SetFinishedEvent` object from a string
+        """Generate a `ReadEvent` object from a string
         """
-        match = re.match(r'^FINISHED READING (\w+)$', string)
+        match = re.match(r'^READ (\w+) FOR (\d+) \w+S$', string)
         if match:
-            return SetFinishedEvent(match.group(1))
+            return ReadEvent(match.group(1), int(match.group(2)))
         else:
             raise EventParseError
 
@@ -130,14 +138,36 @@ class SetFinishedEvent(KindleEvent):
         self.asin = asin
 
     def __str__(self):
-        return 'FINISHED READING %s' % (self.asin)
+        return 'FINISH READING %s' % (self.asin)
 
     @staticmethod
     def from_str(string):
         """Generate a `SetFinishedEvent` object from a string
         """
-        match = re.match(r'^FINISHED READING (\w+)$', string)
+        match = re.match(r'^FINISH READING (\w+)$', string)
         if match:
             return SetFinishedEvent(match.group(1))
+        else:
+            raise EventParseError
+
+
+class UpdateEvent(Event):
+    """Represents a user's update of the Kindle database
+    """
+    def __init__(self, a_datetime):
+        super(UpdateEvent, self).__init__()
+        self.datetime_ = a_datetime
+
+    def __str__(self):
+        return 'UPDATE %s' % self.datetime_.isoformat()
+
+    @staticmethod
+    def from_str(string):
+        """Generate a `SetFinishedEvent` object from a string
+        """
+        match = re.match(r'^UPDATE (.+)$', string)
+        if match:
+            parsed_date = dateutil.parser.parse(match.group(1), ignoretz=True)
+            return UpdateEvent(parsed_date)
         else:
             raise EventParseError
