@@ -1,3 +1,6 @@
 [submodule "kindle_api"]
 	path = kindle_api
 	url = https://github.com/msuozzo/kindle_api
+	update = merge
+	remote = origin
+    branch = master
