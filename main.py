@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Define a command line interface for Kindle Progress tracking
 """
 from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
@@ -5,37 +6,34 @@ from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
 from store import EventStore
 from snapshot import KindleLibrarySnapshot, ReadingStatus
 from kindle_api.reader import KindleCloudReaderAPI
-from credential_mgr import JSONCredentialManager
 
 from datetime import datetime
+import json
 
 
 STORE_PATH = '.store.txt'
 CREDENTIAL_PATH = '.credentials.json'
 
 
-def _update(snapshot, kcr):
-    """Calculate the event diffs between `snapshot` and the current library
-    state retrieved from the Cloud Reader API.
+def _update(snapshot, books, progress):
+    """Calculate the event diffs between `snapshot` and the library
+    state passed as `books` and `progress`
 
     Args:
         snapshot: A ``KindleLibrarySnapshot`` instance representing the
             snapshot against which diff events will be generated.
-        kcr: A ``KindleCloudReaderAPI`` instance used to fetch updates
+        books: The result of ``KindleCloudReaderAPI.get_book_metadata``
+        progress: The result of ``KindleCloudReaderAPI.get_book_progress``
     """
-    # Get up-to-date library info
-    current_books = kcr.get_library_metadata()
-    current_progress = kcr.get_library_progress()
-
     new_events = []
-    for book in current_books:
+    for book in books:
         try:
             data = snapshot.data[book.asin]
         except KeyError:
             new_events.append(AddEvent(book.asin))
         else:
             if data['status'] == ReadingStatus.CURRENT:
-                change = current_progress[book.asin].locs[1] - data['progress']
+                change = progress[book.asin].locs[1] - data['progress']
                 if change > 0:
                     new_events.append(ReadEvent(book.asin, change))
     return new_events
@@ -48,11 +46,12 @@ def run():  #pylint: disable=too-many-locals
     snapshot = KindleLibrarySnapshot(store.get_events())
 
     update_event = UpdateEvent(datetime.now().replace(microsecond=0))
-    uname, pword = JSONCredentialManager(CREDENTIAL_PATH).get_creds()
-    with KindleCloudReaderAPI.get_instance(uname, pword) as kcr:
+    with open(CREDENTIAL_PATH, 'r') as cred_file:
+        creds = json.load(cred_file)
+    with KindleCloudReaderAPI.get_instance(creds['uname'], creds['pword']) as kcr:
         current_books = kcr.get_library_metadata()
         current_progress = kcr.get_library_progress()
-        new_events = _update(snapshot, kcr)
+        new_events = _update(snapshot, current_books, current_progress)
 
     # Events are sorted such that, when applied in order, each event
     # represents a logical change in state. That is, an event never requires
