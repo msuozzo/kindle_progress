@@ -1,6 +1,6 @@
 """Defines tools for composing ``KindleEvent``s into coherent state.
 """
-from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
+from .events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
                     KindleEvent
 
 

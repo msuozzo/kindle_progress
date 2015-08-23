@@ -1,6 +1,6 @@
 """Defines tools for storing KindleEvents
 """
-from events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent,\
+from .events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent,\
     EventParseError
 
 

@@ -1,8 +1,8 @@
 """Define a higher-level interface from which to manage updates to Kindle
 progress tracking
 """
-from events import UpdateEvent
-from snapshot import KindleLibrarySnapshot
+from .events import UpdateEvent
+from .snapshot import KindleLibrarySnapshot
 from kindle_api.reader import KindleCloudReaderAPI, KindleAPIError
 
 from datetime import datetime

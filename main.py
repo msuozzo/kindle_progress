@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Define a command line interface for Kindle Progress tracking
 """
-from events import SetReadingEvent, SetFinishedEvent
-from store import EventStore
-from manager import KindleProgressMgr
+from kindle_progress.events import SetReadingEvent, SetFinishedEvent
+from kindle_progress.store import EventStore
+from kindle_progress.manager import KindleProgressMgr
 
 import json
 
