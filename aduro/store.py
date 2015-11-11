@@ -26,7 +26,7 @@ class EventStore(object):
         events = []
         for event_line in event_lines:
             for event_cls in (AddEvent, SetReadingEvent, ReadEvent,
-                    SetFinishedEvent):
+                              SetFinishedEvent):
                 try:
                     event = event_cls.from_str(event_line)
                 except EventParseError:

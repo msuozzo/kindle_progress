@@ -1,4 +1,4 @@
--e git+git@github.com:msuozzo/kindle_api@3d47f3e5e63c522b5a24611b600058d80b3a1a1b#egg=Kindle_API-master
+-e git+git@github.com:msuozzo/kindle_api@master#egg=Kindle_API-master
 python-dateutil==2.4.2
 selenium==2.47.1
 six==1.9.0

@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Define a command line interface for Kindle Progress tracking
 """
-from kindle_progress.events import SetReadingEvent, SetFinishedEvent
-from kindle_progress.store import EventStore
-from kindle_progress.manager import KindleProgressMgr
+from excelsior.events import SetReadingEvent, SetFinishedEvent
+from excelsior.store import EventStore
+from excelsior.manager import KindleProgressMgr
 
 import json
 
@@ -13,7 +13,9 @@ CREDENTIAL_PATH = '.credentials.json'
 
 
 def safe_raw_input(*args, **kwargs):
-    """Wrapper around the normal `raw_input` builtin that, when a
+    """A `raw_input` wrapper with graceful handling of KeyboardInterrupt.
+
+    A wrapper around the normal `raw_input` builtin that, when a
     `KeyboardInterrupt` is raised, the exception is caught and None is
     returned.
     """

@@ -5,13 +5,13 @@ from .events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
 
 
 class ReadingStatus(object):
-    """An enum representing the three possible progress states of a book
+    """An enum representing the three possible progress states of a book.
     """
     NOT_STARTED, CURRENT, COMPLETED = xrange(3)
 
 
 class BookSnapshot(object):
-    """A book's state of progress
+    """A book's state of progress.
 
     Args:
         asin: The ASIN of the book
@@ -64,9 +64,9 @@ class KindleLibrarySnapshot(object):
         return self._data[asin]
 
     def calc_update_events(self, asin_to_progress):
-        """Calculate and return an iterable of `KindleEvent`s which, when applied to
-        the current snapshot, result in the the current snapshot reflecting
-        the progress state of the `asin_to_progress` mapping.
+        """Calculate and return an iterable of `KindleEvent`s which, when
+        applied to the current snapshot, result in the the current snapshot
+        reflecting the progress state of the `asin_to_progress` mapping.
 
         Functionally, this method generates `AddEvent`s and `ReadEvent`s from
         updated Kindle Library state.
@@ -74,6 +74,10 @@ class KindleLibrarySnapshot(object):
         Args:
             asin_to_progress: A map of book asins to the integral
                 representation of progress used in the current snapshot.
+
+        Returns:
+            A list of Event objects that account for the changes detected in
+            the `asin_to_progress`.
         """
         new_events = []
         for asin, new_progress in asin_to_progress.iteritems():
