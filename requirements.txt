@@ -1,5 +1,4 @@
--e git+git@github.com:msuozzo/kindle_api@master#egg=Kindle_API-master
+Lector==0.0.2
 python-dateutil==2.4.2
-selenium==2.47.1
 six==1.9.0
 wsgiref==0.1.2

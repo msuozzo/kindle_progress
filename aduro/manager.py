@@ -3,7 +3,7 @@ progress tracking
 """
 from .events import UpdateEvent
 from .snapshot import KindleLibrarySnapshot
-from kindle_api.reader import KindleCloudReaderAPI, KindleAPIError
+from lector.reader import KindleCloudReaderAPI, KindleAPIError
 
 from datetime import datetime
 
