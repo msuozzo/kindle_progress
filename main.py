@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Define a command line interface for Kindle Progress tracking
 """
-from excelsior.events import SetReadingEvent, SetFinishedEvent
-from excelsior.store import EventStore
-from excelsior.manager import KindleProgressMgr
+from aduro.events import SetReadingEvent, SetFinishedEvent
+from aduro.store import EventStore
+from aduro.manager import KindleProgressMgr
 
 import json
 
