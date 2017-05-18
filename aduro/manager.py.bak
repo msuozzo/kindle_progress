@@ -45,7 +45,7 @@ class KindleProgressMgr(object):
             Else, the list of `Event`s
         """
         # Attempt to retrieve current state from KindleAPI
-        for _ in range(max_attempts):
+        for _ in xrange(max_attempts):
             try:
                 with KindleCloudReaderAPI\
                         .get_instance(self.uname, self.pword) as kcr:
