@@ -20,7 +20,7 @@ def safe_raw_input(*args, **kwargs):
     returned.
     """
     try:
-        return raw_input(*args, **kwargs)
+        return input(*args, **kwargs)
     except KeyboardInterrupt:
         return None
 
@@ -34,20 +34,20 @@ def run():  #pylint: disable=too-many-locals
         uname, pword = creds['uname'], creds['pword']
     mgr = KindleProgressMgr(store, uname, pword)
 
-    print 'Detecting updates to Kindle progress:'
+    print('Detecting updates to Kindle progress:')
     events = mgr.detect_events()
     if events is None:
-        print 'Failed to retrieve Kindle progress updates'
+        print('Failed to retrieve Kindle progress updates')
         return
     elif not events:
-        print '  No updates detected'
+        print('  No updates detected')
     else:
         for event in events:
-            print '  ' + str(event)
+            print('  ' + str(event))
 
-    print
-    print 'Finished updating.'
-    print 'Mark new books as \'reading\' or old books as \'read\'? (y/N)'
+    print()
+    print('Finished updating.')
+    print('Mark new books as \'reading\' or old books as \'read\'? (y/N)')
     if safe_raw_input('> ') == 'y':
         _change_state_prompt(mgr)
     mgr.commit_events()
@@ -63,17 +63,17 @@ def _change_state_prompt(mgr):
             fields populated.
     """
     cmd = ''
-    book_range = range(1, len(mgr.books) + 1)
-    ind_to_book = dict(zip(book_range, mgr.books))
+    book_range = list(range(1, len(mgr.books) + 1))
+    ind_to_book = dict(list(zip(book_range, mgr.books)))
     get_book = lambda cmd_str: ind_to_book[int(cmd_str.split()[1])]
     while cmd != 'q':
-        print 'Books:'
+        print('Books:')
         for i in book_range:
-            print '\t%d: %s' % (i, ind_to_book[i])
-        print 'Commands:'
-        print '| start {#}   | Start reading book with index {#}'
-        print '| finish {#}  | Finish reading book with index {#}'
-        print '| q           | Quit'
+            print('\t%d: %s' % (i, ind_to_book[i]))
+        print('Commands:')
+        print('| start {#}   | Start reading book with index {#}')
+        print('| finish {#}  | Finish reading book with index {#}')
+        print('| q           | Quit')
         cmd = safe_raw_input('> ')
         if cmd is None or cmd == 'q':
             break
@@ -84,14 +84,14 @@ def _change_state_prompt(mgr):
         elif cmd.startswith('finish '):
             event = SetFinishedEvent(get_book(cmd).asin)
         else:
-            print 'Invalid command'
+            print('Invalid command')
             event = None
         if event is not None:
-            print
-            print 'REGISTERED EVENT:'
-            print '  ' + str(event)
+            print()
+            print('REGISTERED EVENT:')
+            print('  ' + str(event))
             mgr.register_events((event))
-        print
+        print()
 
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@ from .events import AddEvent, SetReadingEvent, SetFinishedEvent, ReadEvent, \
 class ReadingStatus(object):
     """An enum representing the three possible progress states of a book.
     """
-    NOT_STARTED, CURRENT, COMPLETED = xrange(3)
+    NOT_STARTED, CURRENT, COMPLETED = range(3)
 
 
 class BookSnapshot(object):
@@ -80,7 +80,7 @@ class KindleLibrarySnapshot(object):
             the `asin_to_progress`.
         """
         new_events = []
-        for asin, new_progress in asin_to_progress.iteritems():
+        for asin, new_progress in asin_to_progress.items():
             try:
                 book_snapshot = self.get_book(asin)
             except KeyError:
